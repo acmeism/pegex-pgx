@@ -4,20 +4,21 @@
 %version 0.2.0
 
 
-grammar: meta_section rule_section
+grammar: meta_section rule_section (
+   doc_ending |
+   # We definitely have an error at this point; analyze it!
+   ERROR_rule_definition
+)
 
-meta_section: ( meta_definition | ~~ )*
+meta_section: ( meta_definition | ~~ | ERROR_meta_definition )*
 
 rule_section: ( rule_definition | ~~ )*
 
-# TODO With a commit prefix sigil, we can make these ERROR_rules more implicit
-# and elegant.
-meta_definition:
-    / <PERCENT> <meta_name> <BLANK>+ <meta_value> / | ERROR_meta_definition
+meta_definition: / <PERCENT> <meta_name> <BLANK>+ <meta_value> /
 
-rule_definition: rule_start rule_group ( ending | ERROR_rule_ending )
+rule_definition: rule_start rule_group ending
 
-rule_start: / ( <rule_name> ) <BLANK>* <COLON> ~ / | ERROR_rule_start
+rule_start: / ( <rule_name> ) <BLANK>* <COLON> ~ /
 
 rule_group: any_group | all_group
 
@@ -28,13 +29,11 @@ any_group: <all_group>2+ % / ~ <PIPE> ~ /
 rule_part: <rule_item>1-2 % / ~~ ( <PERCENT>{1,2} ) ~~ /
 
 rule_item:
-    ERROR_pre_rule_item |
     rule_reference |
     regular_expression |
     bracketed_group |
     whitespace_token |
-    error_message |
-    ERROR_post_rule_item
+    error_message
 
 rule_reference:
     /
@@ -112,12 +111,22 @@ ERROR_meta_definition:
     /(= <PERCENT> <WORD>+ )/
     `Illegal meta rule`
 
-ERROR_rule_start:
-    !doc_ending
-    `Rule header syntax error`
+# Much of this is essentially a duplicate of the above rules, except with added
+# error checking
 
-ERROR_rule_ending:
-    `Rule ending syntax error`
+ERROR_rule_definition: ERROR_rule_start ERROR_rule_group ( ending | `Rule ending syntax error` )    
+
+ERROR_rule_group: ERROR_any_group | ERROR_all_group
+
+ERROR_all_group: ERROR_rule_part+ % ~
+
+ERROR_any_group: <ERROR_all_group>2+ % / ~ <PIPE> ~ /
+
+ERROR_rule_part: <ERROR_rule_item>1-2 % / ~~ ( <PERCENT>{1,2} ) ~~ /
+
+ERROR_rule_start: / ( <rule_name> ) <BLANK>* <COLON> ~ / | `Rule header syntax error`
+
+ERROR_rule_item: ERROR_pre_rule_item | rule_item | ERROR_post_rule_item
 
 ERROR_pre_rule_item:
     ERROR_pre_rule_reference |
